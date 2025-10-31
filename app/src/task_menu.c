@@ -98,10 +98,12 @@ void task_menu_init(void *parameters)
 	p_task_menu_dta = &task_menu_dta;
 
 	/* Init & Print out: Task execution FSM */
-	state = ST_MEN_XX_IDLE;
+	// state = ST_MEN_XX_IDLE;
+	state = ST_MENU;
 	p_task_menu_dta->state = state;
 
-	event = EV_MEN_ENT_IDLE;
+	// event = EV_MEN_ENT_IDLE;
+	event = EV_ENTER_IDLE;
 	p_task_menu_dta->event = event;
 
 	b_event = false;
@@ -117,10 +119,10 @@ void task_menu_init(void *parameters)
 	displayInit( DISPLAY_CONNECTION_GPIO_4BITS );
 
     displayCharPositionWrite(0, 0);
-	displayStringWrite("TdSE Bienvenidos");
+	displayStringWrite("MAIN");
 
-	displayCharPositionWrite(0, 1);
-	displayStringWrite("Test Nro: ");
+	//displayCharPositionWrite(0, 1);
+	//displayStringWrite("M1 | M2");
 }
 
 void task_menu_update(void *parameters)
@@ -177,6 +179,68 @@ void task_menu_statechart(void)
 
 	switch (p_task_menu_dta->state)
 	{
+
+		case ST_MENU:
+			if ((true == p_task_menu_dta->flag) && (EV_ENTER_ACTIVE == p_task_menu_dta->event))
+			{
+				//p_task_menu_dta->tick = DEL_MEN_XX_MAX;
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU1_M1;
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("MOTOR 1          ");
+			}
+			break;
+
+
+		case ST_MENU1_M1:
+			if ((true == p_task_menu_dta->flag) && (EV_ENTER_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU2_POWER;
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("Power Motor 1          ");
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_NEXT_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU1_M2;
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("MOTOR 2          ");
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_ESC_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU;
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("MAIN          ");
+			}
+			break;
+
+		case ST_MENU2_POWER:
+			if ((true == p_task_menu_dta->flag) && (EV_ENTER_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU3_ON;
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("ENCENDIDO (ON)          ");
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_NEXT_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU2_SPEED;
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("SPEED MOTOR 1          ");
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_ESC_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU1_M1;
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("MOTOR 1          ");
+			}
+			break;
+
+		/********************** inicio del codigo del profe ******************************************/
 		case ST_MEN_XX_IDLE:
 
 			if ((true == p_task_menu_dta->flag) && (EV_MEN_ENT_ACTIVE == p_task_menu_dta->event))
@@ -210,6 +274,7 @@ void task_menu_statechart(void)
 			}
 
 			break;
+			/********************** fin del codigo del profe ******************************************/
 
 		default:
 

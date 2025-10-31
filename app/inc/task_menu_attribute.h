@@ -65,15 +65,29 @@ extern "C" {
 
 /* Events to excite Task Menu */
 typedef enum task_menu_ev {EV_MEN_ENT_IDLE,
-						   EV_MEN_ENT_ACTIVE,
-						   EV_MEN_NEX_IDLE,
-						   EV_MEN_NEX_ACTIVE,
-						   EV_MEN_ESC_IDLE,
-						   EV_MEN_ESC_ACTIVE} task_menu_ev_t;
+							EV_MEN_ENT_ACTIVE,
+							EV_MEN_NEX_IDLE,
+							EV_MEN_NEX_ACTIVE,
+							EV_MEN_ESC_IDLE,
+							EV_MEN_ESC_ACTIVE,
+							EV_ENTER_ACTIVE,
+							EV_ENTER_IDLE,
+							EV_NEXT_ACTIVE,
+							EV_NEXT_IDLE,
+							EV_ESC_ACTIVE,
+							EV_ESC_IDLE} task_menu_ev_t;
 
 /* State of Task Menu */
 typedef enum task_menu_st {ST_MEN_XX_IDLE,
-						   ST_MEN_XX_ACTIVE} task_menu_st_t;
+							ST_MEN_XX_ACTIVE,
+							ST_MENU,
+							ST_MENU1_M1,
+							ST_MENU2_POWER,ST_MENU2_SPEED,ST_MENU2_SPIN,
+							ST_MENU3_ON,ST_MENU3_OFF,ST_MENU3_VV,ST_MENU3_LEFT,ST_MENU3_RIGHT,
+							ST_MENU1_M2,
+							ST_MENU2_POWER2,ST_MENU2_SPEED2,ST_MENU2_SPIN2,
+							ST_MENU3_ON2,ST_MENU3_OFF2,ST_MENU3_VV2,ST_MENU3_LEFT2,ST_MENU3_RIGHT2,
+							} task_menu_st_t;
 
 typedef struct
 {

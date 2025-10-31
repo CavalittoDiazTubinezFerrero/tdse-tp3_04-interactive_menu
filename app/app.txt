@@ -3,3 +3,8 @@
    sequential execution is only deviated from when an interrupt event occurs.
 
 ...
+
+Valores maximos:
+1. g_app_runtime_us = 14
+2. task_dta_list[0].WCET = 11
+3. task_dta_list[1].WCET = 320

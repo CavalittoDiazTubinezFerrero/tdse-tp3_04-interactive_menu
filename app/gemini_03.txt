@@ -1,0 +1,47 @@
+### Análisis y Explicación del Código Fuente
+
+Este análisis detalla el funcionamiento de tres archivos de soporte cruciales que actúan como una capa de abstracción y utilidad de bajo nivel, permitiendo que el resto de la aplicación interactúe con el hardware del microcontrolador de una manera estandarizada y precisa.
+
+---
+
+### **`board.h` - Archivo de Abstracción de Hardware**
+
+Este archivo de cabecera funciona como una **Capa de Abstracción de Hardware (Hardware Abstraction Layer - HAL)** a nivel de placa. Su propósito principal es independizar el código de la aplicación de la configuración física específica de una placa de desarrollo.
+
+* **Funcionamiento**:
+    1.  **Selección de Placa**: Mediante la macro `BOARD`, el programador puede seleccionar la placa específica en la que se compilará el código (en este caso, `NUCLEO_F103RC`).
+    2.  **Compilación Condicional**: Utiliza directivas de preprocesador (`#if`, `#define`) para que, dependiendo de la placa seleccionada, se definan un conjunto de macros estándar para los pines y sus estados.
+    3.  **Estandarización de Nombres**: Define nombres genéricos y legibles para los pines de los botones (ej. `BTN_ENT_PIN`, `BTN_ENT_PORT`) y los LEDs (ej. `LED_A_PIN`).
+    4.  **Estandarización de Estados Lógicos**: Define el estado eléctrico que corresponde a una acción, como por ejemplo `BTN_ENT_PRESSED` que se mapea a `GPIO_PIN_RESET`. Esto abstrae si el botón es activo por nivel alto o bajo.
+
+* **Importancia**: Gracias a este archivo, el resto del código (como `task_sensor.c`) no necesita saber qué pin físico exacto corresponde al botón "Enter". Simplemente usa la macro `BTN_ENT_PIN`. Si se cambia de placa, solo es necesario modificar el valor de `BOARD` en este archivo, y todo el código seguirá funcionando sin necesidad de reescribir la lógica de acceso a los GPIOs.
+
+---
+
+### **`dwt.h` - Utilidad de Medición de Tiempo de Alta Precisión**
+
+Este archivo de cabecera proporciona un conjunto de funciones para utilizar el contador de ciclos de la unidad **DWT (Data Watchpoint and Trace)** del procesador ARM Cortex-M. La DWT es un periférico de depuración que incluye un contador de 32 bits que se incrementa con cada ciclo de reloj del CPU.
+
+* **Funcionamiento**:
+    * **`cycle_counter_init()`**: Habilita el hardware de la DWT y pone a cero el contador de ciclos (`CYCCNT`) para que empiece a contar. Esta función es llamada una vez en `app_init()`.
+    * **`cycle_counter_reset()`**: Reinicia el contador de ciclos a cero. Se usa justo antes de medir un bloque de código.
+    * **`cycle_counter_get()`**: Devuelve el número de ciclos de CPU transcurridos desde el último reinicio.
+    * **`cycle_counter_get_time_us()`**: Es la función más importante para la aplicación. Toma el número de ciclos de CPU contados y **lo convierte a microsegundos**. Esto lo hace dividiendo el número de ciclos por la frecuencia del sistema en MHz (`SystemCoreClock / 1000000`).
+
+* **Importancia**: Este módulo es la base para las mediciones de rendimiento de la aplicación. Las variables `g_app_runtime_us` y `task_dta_list[index].WCET` dependen directamente de `cycle_counter_get_time_us()` para obtener mediciones de tiempo de ejecución muy precisas, a nivel de ciclo de reloj. Estas funciones están definidas como `static inline` para que el compilador las inserte directamente en el código que las llama, eliminando la sobrecarga de una llamada a función y asegurando la máxima precisión en la medición.
+
+---
+
+### **`systick.c` - Utilidad de Retardo por Software (Blocking Delay)**
+
+Este archivo implementa una función para generar retardos de tiempo precisos en el orden de microsegundos, utilizando el temporizador del sistema `SysTick`.
+
+* **Funcionamiento**:
+    * **`systick_delay_us(uint32_t delay_us)`**: Esta función implementa un retardo **bloqueante (busy-waiting)**.
+    1.  Calcula cuántos "ticks" del `SysTick` se necesitan para alcanzar el retardo solicitado en microsegundos (`delay_us`).
+    2.  Lee el valor actual del contador `SysTick` (que es un contador descendente).
+    3.  Entra en un bucle `while(1)` que no hace nada más que leer continuamente el valor del `SysTick` y calcular el tiempo transcurrido.
+    4.  El bucle maneja correctamente el caso en que el contador llega a cero y se recarga (wrap-around).
+    5.  El bucle termina únicamente cuando el tiempo transcurrido es igual o mayor al tiempo objetivo.
+
+* **Importancia**: Proporciona una manera sencilla de generar pausas cortas y precisas, lo cual es fundamental para drivers de periféricos que requieren tiempos de espera específicos entre comandos (como el driver del display LCD). Es importante destacar que es "bloqueante": mientras el microcontrolador está en esta función, no puede hacer nada más. Por eso, su uso se debe limitar a tareas de bajo nivel y evitarse en las tareas principales de la aplicación, que están diseñadas para ser no bloqueantes.

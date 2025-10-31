@@ -1,0 +1,81 @@
+### ## Análisis de `display.h` (La Interfaz Pública)
+
+Este archivo de cabecera (`.h`) define la **interfaz pública** del controlador. Es decir, declara los tipos de datos y funciones que un programador puede usar desde otro archivo (como `main.cpp`) para interactuar con la pantalla LCD sin necesidad de conocer los detalles internos de su funcionamiento.
+
+#### **Tipos de Datos y Estructuras**
+
+* **`displayConnection_t`**: Es un tipo de dato enumerado (`enum`). Las enumeraciones sirven para definir un conjunto de constantes con nombre, lo que hace el código más legible. En este caso, define los dos modos de conexión posibles para la pantalla:
+    * `DISPLAY_CONNECTION_GPIO_4BITS`: La comunicación se realiza usando 4 pines de datos. Es más lento pero ahorra pines del microcontrolador.
+    * `DISPLAY_CONNECTION_GPIO_8BITS`: La comunicación utiliza 8 pines de datos. Es más rápido pero requiere más pines.
+
+* **`display_t`**: Es una estructura de datos (`struct`) que se utiliza para almacenar la configuración o el estado de la pantalla.
+    * `connection`: Este miembro almacena el tipo de conexión (`4BITS` u `8BITS`) que se seleccionó al inicializar la pantalla.
+
+#### **Declaraciones de Funciones Públicas**
+
+Estas son las funciones que el usuario final llamará para controlar la pantalla:
+
+* **`void displayInit( displayConnection_t connection )`**: Esta función **inicializa la pantalla LCD**. Debe ser llamada una sola vez al principio del programa. Recibe como argumento el tipo de conexión (`DISPLAY_CONNECTION_GPIO_4BITS` o `DISPLAY_CONNECTION_GPIO_8BITS`).
+
+* **`void displayCharPositionWrite( uint8_t charPositionX, uint8_t charPositionY )`**: Permite **ubicar el cursor** en una posición específica de la pantalla, donde `charPositionX` es la columna y `charPositionY` es la fila (empezando desde 0).
+
+* **`void displayStringWrite( const char * str )`**: Escribe una **cadena de caracteres** (un string) en la pantalla a partir de la posición actual del cursor.
+
+---
+
+### ## Análisis de `display.cpp` (La Implementación)
+
+Este archivo contiene la lógica interna y el código que hace que las funciones declaradas en `display.h` funcionen. Aquí es donde se maneja directamente el hardware.
+
+#### **Defines Privados (`#define`)**
+
+Al principio del archivo se definen muchas constantes. Estas representan los **comandos de instrucción** que se envían al controlador de la pantalla LCD (el HD44780). Se utilizan valores binarios (`0b...`) porque cada bit tiene un significado específico para el LCD.
+
+* **Comandos Principales**: `DISPLAY_IR_CLEAR_DISPLAY` (borrar pantalla), `DISPLAY_IR_ENTRY_MODE_SET` (configurar cómo se mueve el cursor), `DISPLAY_IR_DISPLAY_CONTROL` (encender/apagar pantalla, cursor), etc.
+* **Opciones de Comandos**: Constantes como `DISPLAY_IR_FUNCTION_SET_8BITS` o `DISPLAY_IR_DISPLAY_CONTROL_DISPLAY_ON` son "máscaras de bits". Se combinan con los comandos principales usando el operador `|` (OR a nivel de bits) para crear una instrucción completa. Por ejemplo, para encender la pantalla sin mostrar el cursor, se enviaría el comando `DISPLAY_IR_DISPLAY_CONTROL | DISPLAY_IR_DISPLAY_CONTROL_DISPLAY_ON`.
+* **Direcciones de Memoria**: Las constantes `DISPLAY_20x4_LINE...` definen las direcciones de memoria internas del LCD que corresponden al inicio de cada línea.
+* **Pines de control**: `DISPLAY_RS_INSTRUCTION` y `DISPLAY_RS_DATA` definen los valores para el pin RS (Register Select), que le dice al LCD si le estamos enviando un comando o un dato para escribir.
+
+#### **Gestión de GPIOs y Acceso al Hardware**
+
+Esta es la parte clave de cómo el código interactúa con el microcontrolador.
+
+La gestión del hardware y los pines **GPIO (General Purpose Input/Output)** se resuelve principalmente a través de la **biblioteca Mbed OS**, referenciada con `#include "mbed.h"`.
+
+1.  **Instanciación de Objetos `DigitalOut`**:
+    ```cpp
+    DigitalOut displayD0( D0 );
+    DigitalOut displayD1( D1 );
+    // ... y así para todos los pines de datos (D0-D7)
+    DigitalOut displayRs( D8 );
+    DigitalOut displayEn( D9 );
+    ```
+    Cada una de estas líneas crea un objeto de la clase `DigitalOut`. Esta clase de Mbed asocia una variable en el código (ej. `displayD4`) con un pin físico del microcontrolador (ej. `D4`). A partir de este momento, escribir un valor en el objeto (ej. `displayD4 = 1;`) cambia el estado del pin físico a alto voltaje.
+
+2.  **Abstracción en Funciones Privadas**: El código no utiliza estos objetos `DigitalOut` directamente en toda la lógica, sino que los "envuelve" en funciones privadas para hacer el código más limpio y modular.
+
+    * **`static void displayPinWrite( uint8_t pinName, int value )`**: Esta función actúa como un intermediario. Recibe el "nombre" de un pin (ej. `DISPLAY_PIN_D4`) y el valor a escribir. Mediante un `switch`, selecciona el objeto `DigitalOut` correcto y le asigna el valor. Esto es útil porque, si se está en modo de 4 bits, simplemente ignora las escrituras a los pines D0-D3.
+
+    * **`static void displayDataBusWrite( uint8_t dataBus )`**: Esta es la función de más bajo nivel para enviar un byte de datos.
+        * **Pulso de Habilitación (Enable Pulse)**: La comunicación con el LCD requiere un pulso en el pin `EN` (Enable). El LCD lee los datos de los pines D0-D7 en el flanco de bajada (cuando `EN` pasa de alto a bajo). Esta función se encarga de realizar esa secuencia: poner `EN` en alto, esperar un instante (`delay(1)`), y luego ponerlo en bajo.
+        * **Manejo de 4 y 8 bits**:
+            * En **modo 8 bits**, coloca los 8 bits del `dataBus` en los pines `D0-D7` y realiza un único pulso de `EN`.
+            * En **modo 4 bits**, el proceso es más complejo: primero envía los 4 bits más significativos (el "nibble" alto) por los pines `D4-D7` y hace un pulso de `EN`. Luego, envía los 4 bits menos significativos (el "nibble" bajo) por los mismos pines `D4-D7` y realiza un segundo pulso de `EN`. La variable `initial8BitCommunicationIsCompleted` es crucial para manejar correctamente la secuencia de inicialización, que siempre empieza en modo 8 bits.
+
+    * **`static void displayCodeWrite( bool type, uint8_t dataBus )`**: Esta función organiza el envío de un comando o un dato.
+        1.  Establece el pin `RS` en `0` (`DISPLAY_RS_INSTRUCTION`) si va a enviar un comando, o en `1` (`DISPLAY_RS_DATA`) si va a enviar un carácter.
+        2.  Llama a `displayDataBusWrite()` para poner el byte en los pines de datos y realizar el pulso de habilitación.
+
+#### **Funcionamiento de las Funciones Públicas**
+
+* **`displayInit()`**: Sigue la secuencia de inicialización estándar del HD44780. Envía una serie de comandos (`FUNCTION_SET`, `DISPLAY_CONTROL`, `CLEAR_DISPLAY`, `ENTRY_MODE_SET`) con los retardos (`delay()`) adecuados para configurar la pantalla en el modo deseado (4 u 8 bits, 2 líneas, etc.) y dejarla lista para recibir texto.
+
+* **`displayCharPositionWrite()`**: Simplemente calcula la dirección de memoria correcta según la fila y columna y envía el comando `DISPLAY_IR_SET_DDRAM_ADDR` combinado con esa dirección.
+
+* **`displayStringWrite()`**: Es un bucle simple que recorre la cadena de caracteres de entrada (`const char * str`) y llama a `displayCodeWrite()` para cada carácter, enviándolo como dato (`DISPLAY_RS_DATA`).
+
+### ## Resumen General
+
+* **Abstracción por capas**: El código está bien estructurado. Las funciones públicas (`displayInit`, etc.) ofrecen una interfaz sencilla. Estas llaman a funciones privadas (`displayCodeWrite`) que gestionan la lógica de la comunicación. A su vez, estas llaman a las funciones de más bajo nivel (`displayDataBusWrite`, `displayPinWrite`) que interactúan directamente con los objetos `DigitalOut` de Mbed, los cuales finalmente manipulan los pines físicos del microcontrolador.
+* **Flexibilidad**: El uso de la enumeración `displayConnection_t` y la lógica condicional en las funciones permite que el mismo código funcione tanto para conexiones de 4 bits como de 8 bits con solo cambiar un parámetro en la inicialización.
+* **Legibilidad**: El uso extensivo de `#define` con nombres significativos hace que la secuencia de inicialización y los comandos enviados al LCD sean mucho más fáciles de entender que si se usaran números hexadecimales o binarios directamente en el código.
