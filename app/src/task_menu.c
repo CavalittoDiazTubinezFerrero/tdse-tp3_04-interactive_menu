@@ -64,6 +64,7 @@ task_menu_dta_t task_menu_dta =
 
 #define MENU_DTA_QTY	(sizeof(task_menu_dta)/sizeof(task_menu_dta_t))
 
+
 /********************** internal functions declaration ***********************/
 void task_menu_statechart(void);
 
@@ -75,7 +76,32 @@ const char *p_task_menu_ 		= "Non-Blocking & Update By Time Code";
 uint32_t g_task_menu_cnt;
 volatile uint32_t g_task_menu_tick_cnt;
 
+motor_t motor_list[] = {
+		{1, OFF, 8, LEFT},
+		{2, ON, 8, LEFT}
+	};
+static int selected_motor=1;
+motor_t *p_motor = NULL;
+size_t motor_count = sizeof(motor_list) / sizeof(motor_list[0]);
+
+int counter = 0;
+char str_display[30];
 /********************** external functions definition ************************/
+void display_main_menu(motor_t motor_list[],size_t motor_count) {
+
+    for (size_t i = 0; i < motor_count; i++) {
+        p_motor = &motor_list[i];
+        displayCharPositionWrite(0, i); // fila i
+        snprintf(str_display, sizeof(str_display),
+                 "M%d: %s, %d, %c",
+                 p_motor->number,
+                 (p_motor->power == ON) ? "ON" : "OFF",
+                 p_motor->speed,
+                 (p_motor->direction == RIGHT) ? 'R' : 'L');
+        displayStringWrite(str_display);
+    }
+}
+
 void task_menu_init(void *parameters)
 {
 	task_menu_dta_t *p_task_menu_dta;
@@ -99,6 +125,7 @@ void task_menu_init(void *parameters)
 
 	/* Init & Print out: Task execution FSM */
 	// state = ST_MEN_XX_IDLE;
+
 	state = ST_MENU;
 	p_task_menu_dta->state = state;
 
@@ -118,11 +145,8 @@ void task_menu_init(void *parameters)
 	/* Init & Print out: LCD Display */
 	displayInit( DISPLAY_CONNECTION_GPIO_4BITS );
 
-    displayCharPositionWrite(0, 0);
-	displayStringWrite("MAIN");
+	display_main_menu(motor_list,motor_count);
 
-	//displayCharPositionWrite(0, 1);
-	//displayStringWrite("M1 | M2");
 }
 
 void task_menu_update(void *parameters)
@@ -166,10 +190,10 @@ void task_menu_update(void *parameters)
 void task_menu_statechart(void)
 {
 	task_menu_dta_t *p_task_menu_dta;
-	char menu_str[8];
 
-    /* Update Task Menu Data Pointer */
+	/* Update Task Menu Data Pointer */
 	p_task_menu_dta = &task_menu_dta;
+	p_motor = &motor_list[selected_motor-1];
 
 	if (true == any_event_task_menu())
 	{
@@ -183,11 +207,13 @@ void task_menu_statechart(void)
 		case ST_MENU:
 			if ((true == p_task_menu_dta->flag) && (EV_ENTER_ACTIVE == p_task_menu_dta->event))
 			{
-				//p_task_menu_dta->tick = DEL_MEN_XX_MAX;
+
 				p_task_menu_dta->flag = false;
 				p_task_menu_dta->state = ST_MENU1_M1;
 				displayCharPositionWrite(0, 1);
 				displayStringWrite("MOTOR 1          ");
+				selected_motor = 1;
+				p_motor = &motor_list[selected_motor-1];
 			}
 			break;
 
@@ -197,22 +223,38 @@ void task_menu_statechart(void)
 			{
 				p_task_menu_dta->flag = false;
 				p_task_menu_dta->state = ST_MENU2_POWER;
+
 				displayCharPositionWrite(0, 1);
-				displayStringWrite("Power Motor 1          ");
+				sprintf(str_display,"MOTOR %d: POWER     ", selected_motor);
+				displayStringWrite(str_display);
 			}
 			else if ((true == p_task_menu_dta->flag) && (EV_NEXT_ACTIVE == p_task_menu_dta->event))
 			{
 				p_task_menu_dta->flag = false;
-				p_task_menu_dta->state = ST_MENU1_M2;
+				p_task_menu_dta->state = ST_MENU1_M1;
+
+				if(selected_motor+1>motor_count){
+					selected_motor = 1;
+				}
+				else{
+					selected_motor++;
+				}
+				p_motor = &motor_list[selected_motor-1];
+
+				displayCharPositionWrite(0, 0);
+				sprintf(str_display, "M%d: %s, %d, %c   ", selected_motor,(p_motor->power == ON) ? "ON" : "OFF",p_motor->speed , (p_motor->direction == RIGHT) ? 'R' : 'L');
+				displayStringWrite(str_display);
+
 				displayCharPositionWrite(0, 1);
-				displayStringWrite("MOTOR 2          ");
+				sprintf(str_display,"MOTOR %d     ", selected_motor);
+				displayStringWrite(str_display);
 			}
 			else if ((true == p_task_menu_dta->flag) && (EV_ESC_ACTIVE == p_task_menu_dta->event))
 			{
 				p_task_menu_dta->flag = false;
 				p_task_menu_dta->state = ST_MENU;
-				displayCharPositionWrite(0, 1);
-				displayStringWrite("MAIN          ");
+
+				display_main_menu(motor_list,motor_count);
 			}
 			break;
 
@@ -221,60 +263,271 @@ void task_menu_statechart(void)
 			{
 				p_task_menu_dta->flag = false;
 				p_task_menu_dta->state = ST_MENU3_ON;
+
 				displayCharPositionWrite(0, 1);
-				displayStringWrite("ENCENDIDO (ON)          ");
+				sprintf(str_display,"MOTOR %d: ON     ", selected_motor);
+				displayStringWrite(str_display);
 			}
 			else if ((true == p_task_menu_dta->flag) && (EV_NEXT_ACTIVE == p_task_menu_dta->event))
 			{
 				p_task_menu_dta->flag = false;
 				p_task_menu_dta->state = ST_MENU2_SPEED;
+
 				displayCharPositionWrite(0, 1);
-				displayStringWrite("SPEED MOTOR 1          ");
+				sprintf(str_display,"MOTOR %d: SPEED     ", selected_motor);
+				displayStringWrite(str_display);
+
 			}
 			else if ((true == p_task_menu_dta->flag) && (EV_ESC_ACTIVE == p_task_menu_dta->event))
 			{
 				p_task_menu_dta->flag = false;
 				p_task_menu_dta->state = ST_MENU1_M1;
+
 				displayCharPositionWrite(0, 1);
-				displayStringWrite("MOTOR 1          ");
+				sprintf(str_display,"MOTOR %d        ", selected_motor);
+				displayStringWrite(str_display);
 			}
 			break;
 
-		/********************** inicio del codigo del profe ******************************************/
-		case ST_MEN_XX_IDLE:
-
-			if ((true == p_task_menu_dta->flag) && (EV_MEN_ENT_ACTIVE == p_task_menu_dta->event))
+		case ST_MENU3_ON:
+			if ((true == p_task_menu_dta->flag) && (EV_ENTER_ACTIVE == p_task_menu_dta->event))
 			{
-				p_task_menu_dta->tick = DEL_MEN_XX_MAX;
 				p_task_menu_dta->flag = false;
-				p_task_menu_dta->state = ST_MEN_XX_ACTIVE;
-			}
+				p_task_menu_dta->state = ST_MENU3_ON;
+				p_motor->power = ON;
 
+				displayCharPositionWrite(0, 0);
+				sprintf(str_display, "M%d: %s, %d, %c   ", selected_motor,(p_motor->power == ON) ? "ON" : "OFF",p_motor->speed , (p_motor->direction == RIGHT) ? 'R' : 'L');
+				displayStringWrite(str_display);
+
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("ESTADO DEFINIDO");
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_NEXT_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU3_OFF;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: OFF        ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_ESC_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU2_POWER;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: POWER     ", selected_motor);
+				displayStringWrite(str_display);
+			}
 			break;
 
-		case ST_MEN_XX_ACTIVE:
-
-			if ((true == p_task_menu_dta->flag) && (EV_MEN_ENT_IDLE == p_task_menu_dta->event))
+		case ST_MENU3_OFF:
+			if ((true == p_task_menu_dta->flag) && (EV_ENTER_ACTIVE == p_task_menu_dta->event))
 			{
 				p_task_menu_dta->flag = false;
-				p_task_menu_dta->state = ST_MEN_XX_IDLE;
+				p_task_menu_dta->state = ST_MENU3_OFF;
+				p_motor->power = OFF;
+
+				displayCharPositionWrite(0, 0);
+				sprintf(str_display, "M%d: %s, %d, %c   ", selected_motor,(p_motor->power == ON) ? "ON" : "OFF",p_motor->speed , (p_motor->direction == RIGHT) ? 'R' : 'L');
+				displayStringWrite(str_display);
+
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("ESTADO DEFINIDO");
 			}
-			else
+			else if ((true == p_task_menu_dta->flag) && (EV_NEXT_ACTIVE == p_task_menu_dta->event))
 			{
-				p_task_menu_dta->tick--;
-				if (DEL_MEN_XX_MIN == p_task_menu_dta->tick)
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU3_ON;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: ON        ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_ESC_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU2_POWER;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: POWER     ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			break;
+
+		case ST_MENU2_SPEED:
+			if ((true == p_task_menu_dta->flag) && (EV_ENTER_ACTIVE == p_task_menu_dta->event))
+			{
+				counter = 0;
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU3_VV;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display, "VELOCIDAD = %d     ", counter);
+				displayStringWrite(str_display);
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_NEXT_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU2_SPIN;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: SPIN     ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_ESC_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU1_M1;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d       ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			break;
+
+		case ST_MENU3_VV:
+			if ((true == p_task_menu_dta->flag) && (EV_ENTER_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU3_VV;
+				p_motor->speed = counter;
+
+				displayCharPositionWrite(0, 0);
+				sprintf(str_display, "M%d: %s, %d, %c   ", selected_motor,(p_motor->power == ON) ? "ON" : "OFF",p_motor->speed , (p_motor->direction == RIGHT) ? 'R' : 'L');
+				displayStringWrite(str_display);
+
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("VV DEFINIDA    ");
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_NEXT_ACTIVE == p_task_menu_dta->event))
+			{
+				if (counter < 9)
 				{
-					p_task_menu_dta->tick = DEL_MEN_XX_MAX;
-
-					/* Print out: LCD Display */
-					snprintf(menu_str, sizeof(menu_str), "%lu", (g_task_menu_cnt/1000ul));
-					displayCharPositionWrite(10, 1);
-					displayStringWrite(menu_str);
+					counter++;
 				}
-			}
+				else{
+					counter = 0;
+				}
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU3_VV;
 
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display, "VELOCIDAD = %d ", counter);
+				displayStringWrite(str_display);
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_ESC_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU2_SPEED;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: SPEED     ", selected_motor);
+				displayStringWrite(str_display);
+			}
 			break;
-			/********************** fin del codigo del profe ******************************************/
+
+		case ST_MENU2_SPIN:
+			if ((true == p_task_menu_dta->flag) && (EV_ENTER_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU3_LEFT;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: LEFT     ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_NEXT_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU2_POWER;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: POWER     ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_ESC_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU1_M1;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d       ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			break;
+
+		case ST_MENU3_LEFT:
+			if ((true == p_task_menu_dta->flag) && (EV_ENTER_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU3_LEFT;
+				p_motor->direction = LEFT;
+
+				displayCharPositionWrite(0, 0);
+				sprintf(str_display, "M%d: %s, %d, %c  ", selected_motor,(p_motor->power == ON) ? "ON" : "OFF",p_motor->speed , (p_motor->direction == RIGHT) ? 'R' : 'L');
+				displayStringWrite(str_display);
+
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("GIRO DEFINIDO   ");
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_NEXT_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU3_RIGHT;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: RIGHT       ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_ESC_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU2_SPIN;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: SPIN       ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			break;
+
+		case ST_MENU3_RIGHT:
+			if ((true == p_task_menu_dta->flag) && (EV_ENTER_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU3_RIGHT;
+				p_motor->direction = RIGHT;
+
+				displayCharPositionWrite(0, 0);
+				sprintf(str_display, "M%d: %s, %d, %c   ", selected_motor,(p_motor->power == ON) ? "ON" : "OFF",p_motor->speed , (p_motor->direction == RIGHT) ? 'R' : 'L');
+				displayStringWrite(str_display);
+
+				displayCharPositionWrite(0, 1);
+				displayStringWrite("GIRO DEFINIDO   ");
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_NEXT_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU3_LEFT;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: LEFT       ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			else if ((true == p_task_menu_dta->flag) && (EV_ESC_ACTIVE == p_task_menu_dta->event))
+			{
+				p_task_menu_dta->flag = false;
+				p_task_menu_dta->state = ST_MENU2_SPIN;
+
+				displayCharPositionWrite(0, 1);
+				sprintf(str_display,"MOTOR %d: SPIN       ", selected_motor);
+				displayStringWrite(str_display);
+			}
+			break;
+
+
 
 		default:
 
@@ -286,5 +539,7 @@ void task_menu_statechart(void)
 			break;
 	}
 }
+
+
 
 /********************** end of file ******************************************/

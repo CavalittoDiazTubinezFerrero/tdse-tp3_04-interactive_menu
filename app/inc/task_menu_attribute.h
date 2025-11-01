@@ -97,6 +97,31 @@ typedef struct
 	bool			flag;
 } task_menu_dta_t;
 
+typedef struct
+{
+	uint32_t		tick;
+	task_menu_st_t	state;
+	task_menu_ev_t	event;
+	bool			flag;
+} motor_parameters;
+
+typedef enum {
+    OFF = 0,
+    ON
+} motor_power_t;
+
+typedef enum {
+    LEFT = 0,
+    RIGHT
+} motor_direction_t;
+
+typedef struct {
+	int number;
+    motor_power_t power;
+    int speed;
+    motor_direction_t direction;
+} motor_t;
+
 /********************** external data declaration ****************************/
 extern task_menu_dta_t task_menu_dta;
 
